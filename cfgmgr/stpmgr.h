@@ -119,6 +119,7 @@ private:
     int allocL2Instance(uint32_t vlan_id);
     void deallocL2Instance(uint32_t vlan_id);
     bool isLagEmpty(const string &key);
+    bool isBoolSTP(const string &key);
     
     void processStpPortAttr(const string op, vector<FieldValueTuple>&tupEntry, const string intfName);
     void processStpVlanPortAttr(const string op, uint32_t vlan_id, const string intfName,

@@ -31,7 +31,7 @@ StpMgr::StpMgr(DBConnector *confDb, DBConnector *applDb, DBConnector *statDb,
 
     m_cfgStpMstTable(confDb, CFG_STP_MST_TABLE_NAME),
     m_cfgStpMstInstTable (confDb, CFG_STP_MST_INST_TABLE_NAME),
-    m_cfgStpMstPortTable (confDb, CFG_STP_MST_PORT_TABLE_NAME)
+    m_cfgStpMstPortTable (confDb, CFG_STP_MST_PORT_TABLE_NAME),
 
     m_stateVlanTable(statDb, STATE_VLAN_TABLE_NAME),
     m_stateLagTable(statDb, STATE_LAG_TABLE_NAME),
@@ -41,7 +41,7 @@ StpMgr::StpMgr(DBConnector *confDb, DBConnector *applDb, DBConnector *statDb,
     SWSS_LOG_ENTER();
     l2ProtoEnabled = L2_NONE;
 
-    stpGlobalTask = stpVlanTask = stpVlanPortTask = stpPortTask = false;
+    stpGlobalTask = stpVlanTask = stpVlanPortTask = stpPortTask = stpMstpTask = MstpInstanceTask = MstpPortTask = false;
 
     // Initialize all VLANs to Invalid instance
     fill_n(m_vlanInstMap, MAX_VLANS, INVALID_INSTANCE);
@@ -68,12 +68,14 @@ void StpMgr::doTask(Consumer &consumer)
         doLagMemUpdateTask(consumer);
     else if (table == STATE_VLAN_MEMBER_TABLE_NAME)
         doVlanMemUpdateTask(consumer);
+
     else if (table == CFG_STP_MST_TABLE_NAME)
         doStpMstpTask(consumer);
     else if (table == CFG_STP_MST_INST_TABLE_NAME)
         doMstpInstanceTask(consumer);
     else if (table == CFG_STP_MST_PORT_TABLE_NAME)
         doMstpPortTask(consumer);
+
     else
         SWSS_LOG_ERROR("Invalid table %s", table.c_str());
 }
@@ -233,6 +235,10 @@ void StpMgr::doStpVlanTask(Consumer &consumer)
                 {
                     priority = stoi(fvValue(i).c_str());
                 }
+                else if (fvField(i) == "bpgd_guard")
+                {
+                    priority = stoi(fvValue(i).c_str());
+                } 
             }
         }
         else if (op == DEL_COMMAND)
@@ -656,6 +662,74 @@ void StpMgr::doVlanMemUpdateTask(Consumer &consumer)
         it = consumer.m_toSync.erase(it);
     }
 }
+
+
+void StpMgr::doStpMstpTask(Consumer &consumer)
+{
+    SWSS_LOG_ENTER();
+
+    if (!stpMstpTask)
+        stpMstpTask = true;
+
+    auto it = consumer.m_toSync.begin();
+    while (it != consumer.m_toSync.end())
+    { 
+
+        STP_MST_CONFIG_MSG *msg = NULL;
+
+        int name, revision, max_age, max_hop, helloTime, forwardDelay = 0;
+        name =  revision = max_age = max_hop = helloTime = forwardDelay = 0;
+
+
+        KeyOpFieldsValuesTuple t = it->second;
+        string key = kfvKey(t);
+        string op = kfvOp(t);
+
+        SWSS_LOG_INFO("STP MST key %s op %s", key.c_str(), op.c_str());
+        if (op == SET_COMMAND)
+        {
+            msg.opcode = STP_SET_COMMAND;
+            for (auto i : kfvFieldsValues(t))
+            {
+                SWSS_LOG_DEBUG("Field: %s Val: %s", fvField(i).c_str(), fvValue(i).c_str());
+
+                if (fvField(i) == "name")
+                {
+                    name = stoi(fvValue(i).c_str());
+                }
+                else if (fvField(i) == "revision")
+                {
+                    revision = stoi(fvValue(i).c_str());
+                }
+                else if (fvField(i) == "max_hop")
+                {
+                    max_hop = stoi(fvValue(i).c_str());
+                }
+                else if (fvField(i) == "max_age")
+                {
+                    max_age = stoi(fvValue(i).c_str());
+                }
+                else if (fvField(i) == "hello_time")
+                {
+                    hello_time = stoi(fvValue(i).c_str());
+                }
+                else if (fvField(i) == "forward_delay")
+                {
+                    forward_delay = stoi(fvValue(i).c_str());
+                }
+            }
+        }
+        else if (op == DEL_COMMAND)
+        {
+            msg.opcode = STP_DEL_COMMAND;
+            
+        }
+
+        sendMsgStpd(STP_MST_CONFIG, sizeof(msg), (void *)&msg);
+        it = consumer.m_toSync.erase(it);
+    }
+}
+
 
 void StpMgr::doLagMemUpdateTask(Consumer &consumer)
 {

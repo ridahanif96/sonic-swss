@@ -28,7 +28,7 @@ StpMgr::StpMgr(DBConnector *confDb, DBConnector *applDb, DBConnector *statDb,
     m_cfgLagMemberTable(confDb, CFG_LAG_MEMBER_TABLE_NAME),
     m_cfgVlanMemberTable(confDb, CFG_VLAN_MEMBER_TABLE_NAME),
     
-
+    // MSTP TABLES
     m_cfgStpMstTable(confDb, CFG_STP_MST_TABLE_NAME),
     m_cfgStpMstInstTable (confDb, CFG_STP_MST_INST_TABLE_NAME),
     m_cfgStpMstPortTable (confDb, CFG_STP_MST_PORT_TABLE_NAME),
